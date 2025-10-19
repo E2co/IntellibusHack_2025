@@ -1,11 +1,10 @@
-const _jsxFileName = "";import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GlassCard } from "@/components/GlassCard";
 import { TicketDisplay } from "@/components/TicketDisplay";
 import { CircularProgress } from "@/components/CircularProgress";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { MessageCircle, Users, Clock } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
 import api from "@/lib/api";
 
 // Simple heuristic for ETA: 2 minutes per person ahead
@@ -60,12 +59,24 @@ const Ticket = () => {
     return () => { cancelled = true; };
   }, []);
 
-  // Poll traffic periodically to update position
+  // Poll ticket + traffic periodically to update position and ETA
   useEffect(() => {
     if (!ticket) return;
     let cancelled = false;
     async function poll() {
       try {
+        const latest = await api.get('/api/tickets/me');
+        if (!cancelled && latest?.ticket) {
+          // If position or service changed, reset countdown based on new position
+          const prevPos = ticket.position;
+          const nextTicket = latest.ticket;
+          setTicket(nextTicket);
+          const newPos = nextTicket.position ?? Math.max((nextTicket.number || 0) - (nextTicket.currentNumber || 0), 0);
+          if (newPos !== prevPos) {
+            const eta = newPos * ETA_PER_PERSON_SECONDS;
+            setCountdown(eta);
+          }
+        }
         const traffic = await api.get('/api/traffic');
         if (cancelled) return;
         const map = {};
@@ -81,9 +92,11 @@ const Ticket = () => {
 
   // Start/continue countdown
   useEffect(() => {
+    const serverPosition = ticket?.position;
     const serviceInfo = ticket ? trafficMap[ticket.serviceId] : null;
-    const current = serviceInfo?.currentNumber || 0;
-    const position = ticket && ticket.status === 'waiting' ? Math.max((ticket.number || 0) - current, 0) : 0;
+    const current = ticket?.currentNumber ?? serviceInfo?.currentNumber ?? 0;
+    const computedPosition = ticket && ticket.status === 'waiting' ? Math.max((ticket.number || 0) - current, 0) : 0;
+    const position = typeof serverPosition === 'number' ? serverPosition : computedPosition;
     const nextEta = position * ETA_PER_PERSON_SECONDS;
     if (nextEta > 0 && !countdownStartedRef.current) {
       countdownStartedRef.current = true;
@@ -99,18 +112,37 @@ const Ticket = () => {
   const serviceInfo = ticket ? trafficMap[ticket.serviceId] : null;
   const serviceName = serviceInfo?.name || "";
   const serviceCode = serviceInfo?.code || "";
-  const currentNumber = serviceInfo?.currentNumber || 0;
-  const totalInQueue = serviceInfo?.totalInQueue ?? 0;
-  const position = ticket && ticket.status === 'waiting' ? Math.max((ticket.number || 0) - currentNumber, 0) : 0;
+  const currentNumber = ticket?.currentNumber ?? serviceInfo?.currentNumber ?? 0;
+  const totalInQueue = ticket?.totalInQueue ?? serviceInfo?.totalInQueue ?? 0;
+  const position = typeof ticket?.position === 'number'
+    ? ticket.position
+    : (ticket && ticket.status === 'waiting' ? Math.max((ticket.number || 0) - currentNumber, 0) : 0);
   const ticketLabel = ticket ? (serviceCode ? `${serviceCode}-${ticket.number}` : `#${ticket.number}`) : "";
 
+  const minutes = Math.floor(countdown / 60);
+  const seconds = countdown % 60;
+
   const handleCancel = async () => {
+    if (!window.confirm('Are you sure you want to leave the queue?')) {
+      return;
+    }
+
     try {
       setCanceling(true);
-      await api.patch('/api/tickets/me/cancel');
+      setError("");
+      console.log('Canceling ticket...');
+      const response = await api.patch('/api/tickets/me/cancel');
+      console.log('Ticket canceled successfully:', response);
+      
+      // Clear ticket state before navigating
+      setTicket(null);
+      
+      // Navigate to service select after successful cancellation
       navigate('/service-select');
     } catch (err) {
-      setError(err.message || 'Failed to cancel');
+      console.error('Failed to cancel ticket:', err);
+      setError(err.message || 'Failed to cancel ticket');
+      // Don't navigate if cancellation failed
     } finally {
       setCanceling(false);
     }
@@ -118,145 +150,145 @@ const Ticket = () => {
 
   if (loading) {
     return (
-      React.createElement('div', { className: "min-h-screen p-4 md:p-8 flex items-center justify-center", __self: this, __source: {fileName: _jsxFileName, lineNumber: 64}}
-        , React.createElement('div', { className: "text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 65}}, "Loading ticket...")
-      )
+      <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
+        <div className="text-muted-foreground">Loading ticket...</div>
+      </div>
     );
   }
 
   if (!ticket) {
     return (
-      React.createElement('div', { className: "min-h-screen p-4 md:p-8 flex items-center justify-center", __self: this, __source: {fileName: _jsxFileName, lineNumber: 71}}
-        , React.createElement(GlassCard, { className: "p-8 text-center space-y-4", __self: this, __source: {fileName: _jsxFileName, lineNumber: 72}}
-          , React.createElement('h2', { className: "text-2xl font-bold", __self: this, __source: {fileName: _jsxFileName, lineNumber: 73}}, "No active ticket")
-          , React.createElement('p', { className: "text-muted-foreground", __self: this, __source: {fileName: _jsxFileName, lineNumber: 74}}, "Join a queue to get started.")
-          , React.createElement(Button, { onClick: () => navigate('/service-select'), className: "mt-2", __self: this, __source: {fileName: _jsxFileName, lineNumber: 75}}, "Choose a service")
-        )
-      )
+      <div className="min-h-screen p-4 md:p-8 flex items-center justify-center">
+        <GlassCard className="p-8 text-center space-y-4">
+          <h2 className="text-2xl font-bold">No active ticket</h2>
+          <p className="text-muted-foreground">Join a queue to get started.</p>
+          <Button onClick={() => navigate('/service-select')} className="mt-2">Choose a service</Button>
+        </GlassCard>
+      </div>
     );
   }
 
-  // derive mm:ss inline where needed
-
   return (
-    React.createElement('div', { className: "min-h-screen p-4 md:p-8"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 86}}
-      , React.createElement('div', { className: "max-w-6xl mx-auto space-y-6"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 87}}
-        /* Welcome Header */
-        , React.createElement(GlassCard, { className: "p-6 text-center animate-slide-up"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 89}}
-          , React.createElement('h1', { className: "text-2xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 90}}, "Welcome, "
-             , userData.fullName.split(" ")[0], "!"
-          )
-          , React.createElement('p', { className: "text-muted-foreground mt-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 93}}, ticket.status === 'called' ? "It's your turn! Please proceed to the counter." : "Thank you for waiting. You'll be called soon."
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Welcome Header */}
+        <GlassCard className="p-6 text-center animate-slide-up">
+          <h1 className="text-2xl font-bold">
+            Welcome, {userData.fullName.split(" ")[0]}!
+          </h1>
+          <p className="text-muted-foreground mt-2">
+            {ticket.status === 'called' 
+              ? "It's your turn! Please proceed to the counter." 
+              : "Thank you for waiting. You'll be called soon."}
+          </p>
+          {error && <p className="text-destructive mt-2">{error}</p>}
+        </GlassCard>
 
-          )
-          , error && React.createElement('p', { className: "text-destructive mt-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 96}}, error)
-        )
+        {/* Main Ticket Display */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left Column - Ticket */}
+          <div className="space-y-6">
+            <TicketDisplay
+              ticketNumber={ticketLabel}
+              service={serviceName}
+            />
 
-        /* Main Ticket Display */
-        , React.createElement('div', { className: "grid grid-cols-1 lg:grid-cols-2 gap-6"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 99}}
-          /* Left Column - Ticket */
-          , React.createElement('div', { className: "space-y-6", __self: this, __source: {fileName: _jsxFileName, lineNumber: 101}}
-            , React.createElement(TicketDisplay, {
-              ticketNumber: ticketLabel,
-              service: serviceName, __self: this, __source: {fileName: _jsxFileName, lineNumber: 102}}
-            )
+            <GlassCard className="p-6 text-center">
+              <p className="text-sm text-muted-foreground mb-2">
+                Here's your position in the queue:
+              </p>
+              <div className="text-4xl font-bold text-primary">#{position}</div>
+            </GlassCard>
+          </div>
 
-            , React.createElement(GlassCard, { className: "p-6 text-center" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 107}}
-              , React.createElement('p', { className: "text-sm text-muted-foreground mb-2"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 108}}, "Here's your position in the queue:"
+          {/* Right Column - Stats */}
+          <div className="space-y-6">
+            {/* Queue Position */}
+            <GlassCard className="p-8 flex flex-col items-center justify-center space-y-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Users className="w-5 h-5" />
+                <span className="text-sm font-medium">People in Queue</span>
+              </div>
+              <CircularProgress
+                value={Math.max((totalInQueue || 0) - position, 0)}
+                max={Math.max(totalInQueue || 1, 1)}
+                size={140}
+                strokeWidth={12}
+                color="primary"
+              >
+                <div className="text-center">
+                  <div className="text-3xl font-bold">{position}</div>
+                  <div className="text-sm text-muted-foreground">ahead</div>
+                </div>
+              </CircularProgress>
+            </GlassCard>
 
-              )
-              , React.createElement('div', { className: "text-4xl font-bold text-primary"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 111}}, "#", position)
-            )
-          )
+            {/* Wait Time */}
+            <GlassCard className="p-8 flex flex-col items-center justify-center space-y-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Clock className="w-5 h-5" />
+                <span className="text-sm font-medium">Estimated Wait Time</span>
+              </div>
+              <CircularProgress
+                value={countdown}
+                max={Math.max(countdown, 1)}
+                size={140}
+                strokeWidth={12}
+                color="secondary"
+              >
+                <div className="text-center">
+                  <div className="text-3xl font-bold">
+                    {minutes}:{seconds.toString().padStart(2, "0")}
+                  </div>
+                  <div className="text-sm text-muted-foreground">remaining</div>
+                </div>
+              </CircularProgress>
+            </GlassCard>
 
-          /* Right Column - Stats */
-          , React.createElement('div', { className: "space-y-6", __self: this, __source: {fileName: _jsxFileName, lineNumber: 116}}
-            /* Queue Position */
-            , React.createElement(GlassCard, { className: "p-8 flex flex-col items-center justify-center space-y-4"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 118}}
-              , React.createElement('div', { className: "flex items-center gap-2 text-muted-foreground"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 119}}
-                , React.createElement(Users, { className: "w-5 h-5" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 79}} )
-                , React.createElement('span', { className: "text-sm font-medium" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 80}}, "People in Queue"  )
-              )
-              , React.createElement(CircularProgress, {
-                value: Math.max((totalInQueue || 0) - position, 0),
-                max: Math.max(totalInQueue || 1, 1),
-                size: 140,
-                strokeWidth: 12,
-                color: "primary", __self: this, __source: {fileName: _jsxFileName, lineNumber: 82}}
+            {/* FAQ Chat */}
+            <GlassCard className="p-8 flex flex-col items-center justify-center space-y-4">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MessageCircle className="w-5 h-5" />
+                <span className="text-sm font-medium">Need Help?</span>
+              </div>
+              <Button
+                variant="outline"
+                className="glass w-full"
+                size="lg"
+              >
+                Open FAQ Chat
+              </Button>
+            </GlassCard>
+          </div>
+        </div>
 
-                , React.createElement('div', { className: "text-center", __self: this, __source: {fileName: _jsxFileName, lineNumber: 129}}
-                  , React.createElement('div', { className: "text-3xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 130}}, position)
-                  , React.createElement('div', { className: "text-sm text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 91}}, "ahead")
-                )
-              )
-            )
+        {/* Status Banner */}
+        <GlassCard className="p-4 text-center">
+          <p className="text-sm">
+            🔴 <span className="font-semibold">Live</span> • You'll receive a notification when it's your turn
+          </p>
+        </GlassCard>
 
-            /* Wait Time */
-            , React.createElement(GlassCard, { className: "p-8 flex flex-col items-center justify-center space-y-4"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 136}}
-              , React.createElement('div', { className: "flex items-center gap-2 text-muted-foreground"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 137}}
-                , React.createElement(Clock, { className: "w-5 h-5" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 99}} )
-                , React.createElement('span', { className: "text-sm font-medium" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 100}}, "Estimated Wait Time"  )
-              )
-              , React.createElement(CircularProgress, {
-                value: countdown,
-                max: Math.max(countdown, 1),
-                size: 140,
-                strokeWidth: 12,
-                color: "secondary", __self: this, __source: {fileName: _jsxFileName, lineNumber: 102}}
-
-                , React.createElement('div', { className: "text-center", __self: this, __source: {fileName: _jsxFileName, lineNumber: 149}}
-                  , React.createElement('div', { className: "text-3xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 150}}
-                    , Math.floor(countdown / 60), ":", (countdown % 60).toString().padStart(2, "0")
-                  )
-                  , React.createElement('div', { className: "text-sm text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 113}}, "remaining")
-                )
-              )
-            )
-
-            /* FAQ Chat */
-            , React.createElement(GlassCard, { className: "p-8 flex flex-col items-center justify-center space-y-4"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 156}}
-              , React.createElement('div', { className: "flex items-center gap-2 text-muted-foreground"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 157}}
-                , React.createElement(MessageCircle, { className: "w-5 h-5" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 121}} )
-                , React.createElement('span', { className: "text-sm font-medium" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 122}}, "Need Help?" )
-              )
-              , React.createElement(Button, {
-                variant: "outline",
-                className: "glass w-full" ,
-                size: "lg", __self: this, __source: {fileName: _jsxFileName, lineNumber: 124}}
-, "Open FAQ Chat"
-
-              )
-            )
-          )
-        )
-
-        /* Status Banner */
-        , React.createElement(GlassCard, { className: "p-4 text-center" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 173}}
-          , React.createElement('p', { className: "text-sm", __self: this, __source: {fileName: _jsxFileName, lineNumber: 174}}, "🔴 "
-             , React.createElement('span', { className: "font-semibold", __self: this, __source: {fileName: _jsxFileName, lineNumber: 175}}, "Live"), " • You'll receive a notification when it's your turn"
-          )
-        )
-
-        /* Action Buttons */
-        , React.createElement('div', { className: "flex gap-4 justify-center"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 180}}
-          , React.createElement(Button, {
-            variant: "outline",
-            onClick: () => navigate("/"),
-            className: "glass", __self: this, __source: {fileName: _jsxFileName, lineNumber: 144}}
-, "Back to Home"
-
-          )
-          , React.createElement(Button, {
-            variant: "destructive",
-            className: "bg-destructive hover:bg-destructive/90" ,
-            disabled: canceling,
-            onClick: handleCancel, __self: this, __source: {fileName: _jsxFileName, lineNumber: 188}}
-, canceling ? "Leaving..." : "Leave Queue"
-
-          )
-        )
-      )
-    )
+        {/* Action Buttons */}
+        <div className="flex gap-4 justify-center">
+          <Button
+            variant="outline"
+            onClick={() => navigate("/")}
+            className="glass"
+          >
+            Back to Home
+          </Button>
+          <Button
+            variant="destructive"
+            className="bg-destructive hover:bg-destructive/90"
+            disabled={canceling}
+            onClick={handleCancel}
+          >
+            {canceling ? "Leaving..." : "Leave Queue"}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
 

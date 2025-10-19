@@ -74,19 +74,56 @@ export const getMyTicket = async (req, res) => {
     const userId = req.userId
     if (!userId) return res.status(401).json({ success: false, message: 'Not Authorized' })
 
-    // Prefer 'waiting' then fallback to 'called' without using 'in' to avoid index requirements
-    const waitingQ = query(ticketsCol(), where('userId', '==', userId), where('status', '==', 'waiting'), orderBy('createdAt', 'desc'), limit(1))
-    const waitingSnap = await getDocs(waitingQ)
+    // Query only by userId to avoid composite index requirement
+    // Then filter and sort in-memory
+    const q = query(ticketsCol(), where('userId', '==', userId))
+    const querySnap = await getDocs(q)
 
-    if (!waitingSnap.empty) {
-      return res.json({ success: true, ticket: toPublicTicket(waitingSnap.docs[0]) })
+    if (querySnap.empty) {
+      return res.json({ success: true, ticket: null })
     }
 
-    const calledQ = query(ticketsCol(), where('userId', '==', userId), where('status', '==', 'called'), orderBy('createdAt', 'desc'), limit(1))
-    const calledSnap = await getDocs(calledQ)
+    // Filter and sort tickets in-memory
+    const tickets = querySnap.docs
+      .map(doc => ({ docSnap: doc, data: doc.data() }))
+      .filter(t => t.data.status === 'waiting' || t.data.status === 'called')
+      .sort((a, b) => {
+        // Prefer 'waiting' over 'called'
+        if (a.data.status !== b.data.status) {
+          return a.data.status === 'waiting' ? -1 : 1
+        }
+        // Then sort by createdAt descending
+        return (b.data.createdAt || '').localeCompare(a.data.createdAt || '')
+      })
 
-    if (!calledSnap.empty) {
-      return res.json({ success: true, ticket: toPublicTicket(calledSnap.docs[0]) })
+    if (tickets.length > 0) {
+      const picked = tickets[0]
+      const tData = picked.data
+
+      // Compute accurate queue context: currentNumber, totalInQueue, and position (people ahead)
+      let currentNumber = 0
+      let totalInQueue = 0
+      let positionAhead = 0
+      try {
+        // Get queue counters
+        const qRef = doc(db, 'queues', tData.serviceId)
+        const qSnap = await getDoc(qRef)
+        currentNumber = (qSnap.exists() ? (qSnap.data()?.currentNumber || 0) : 0)
+
+        // Count waiting tickets for this service and compute how many are ahead
+        const sSnap = await getDocs(query(ticketsCol(), where('serviceId', '==', tData.serviceId)))
+        const waiting = sSnap.docs.filter(d => (d.data()?.status === 'waiting'))
+        totalInQueue = waiting.length
+        positionAhead = waiting.filter(d => {
+          const num = d.data()?.number || 0
+          return num > currentNumber && num < (tData.number || 0)
+        }).length
+      } catch (e) {
+        // Fallbacks already set to 0; ignore
+      }
+
+      const pub = toPublicTicket(picked.docSnap)
+      return res.json({ success: true, ticket: { ...pub, currentNumber, totalInQueue, position: positionAhead } })
     }
 
     return res.json({ success: true, ticket: null })
@@ -101,28 +138,67 @@ export const cancelMyTicket = async (req, res) => {
     const userId = req.userId
     if (!userId) return res.status(401).json({ success: false, message: 'Not Authorized' })
 
-    const q = query(ticketsCol(), where('userId', '==', userId), where('status', '==', 'waiting'), orderBy('createdAt', 'desc'), limit(1))
+    // Query only by userId to avoid composite index requirement
+    const q = query(ticketsCol(), where('userId', '==', userId))
     const querySnap = await getDocs(q)
 
-    if (querySnap.empty) return res.status(404).json({ success: false, message: 'No active ticket' })
-    const ticketDocSnap = querySnap.docs[0]
+    if (querySnap.empty) {
+      return res.status(404).json({ success: false, message: 'No active ticket' })
+    }
+
+    // Find most recent waiting ticket in-memory
+    const waitingTickets = querySnap.docs
+      .filter(doc => doc.data().status === 'waiting')
+      .sort((a, b) => (b.data().createdAt || '').localeCompare(a.data().createdAt || ''))
+
+    if (waitingTickets.length === 0) {
+      return res.status(404).json({ success: false, message: 'No active ticket' })
+    }
+
+    const ticketDocSnap = waitingTickets[0]
     const data = ticketDocSnap.data()
     const serviceId = data.serviceId
+    const ticketNumber = data.number
+
+    console.log('Canceling ticket:', ticketDocSnap.id, 'number:', ticketNumber, 'for service:', serviceId)
 
     await runTransaction(db, async (tx) => {
       const queueRef = doc(db, 'queues', serviceId)
       const queueSnap = await tx.get(queueRef)
-      const queue = queueSnap.exists() ? queueSnap.data() : { waitingCount: 0 }
+      
+      if (!queueSnap.exists()) {
+        console.log('Queue does not exist for service:', serviceId)
+        const ticketRef = doc(db, 'tickets', ticketDocSnap.id)
+        tx.update(ticketRef, { status: 'canceled', updatedAt: nowIso() })
+        return
+      }
 
+      const queue = queueSnap.data()
+      console.log('Current queue state:', queue)
+
+      // Count actual waiting tickets for this service (excluding the one being canceled)
+      const allServiceTicketsQuery = query(ticketsCol(), where('serviceId', '==', serviceId))
+      const allServiceTicketsSnap = await getDocs(allServiceTicketsQuery)
+      
+      const actualWaitingCount = allServiceTicketsSnap.docs.filter(doc => {
+        const ticketData = doc.data()
+        return ticketData.status === 'waiting' && doc.id !== ticketDocSnap.id
+      }).length
+
+      console.log('Actual waiting count after cancellation:', actualWaitingCount)
+
+      // Update the ticket to canceled
       const ticketRef = doc(db, 'tickets', ticketDocSnap.id)
       tx.update(ticketRef, { status: 'canceled', updatedAt: nowIso() })
-      if (!queueSnap.exists()) {
-        tx.set(queueRef, { lastNumber: 0, currentNumber: 0, waitingCount: 0, updatedAt: nowIso() })
-      } else {
-        tx.update(queueRef, { waitingCount: Math.max((queue.waitingCount || 0) - 1, 0), updatedAt: nowIso() })
-      }
+      
+      // Update queue with accurate waiting count
+      tx.update(queueRef, { 
+        waitingCount: actualWaitingCount,
+        updatedAt: nowIso() 
+      })
     })
 
+    console.log('Ticket canceled successfully')
     return res.json({ success: true })
   } catch (err) {
     console.error('cancelMyTicket error', err)
@@ -209,4 +285,42 @@ export const adminAdvanceQueue = async (req, res) => {
   }
 }
 
-export default { createTicket, getMyTicket, cancelMyTicket, getPublicTraffic, adminAdvanceQueue }
+// Clear all queues and tickets (for development/testing)
+export const clearAllQueues = async (req, res) => {
+  try {
+    console.log('Clearing all queues and tickets...')
+    
+    // Clear all tickets
+    const ticketsSnap = await getDocs(ticketsCol())
+    const ticketDeletes = ticketsSnap.docs.map(async (docSnap) => {
+      await updateDoc(doc(db, 'tickets', docSnap.id), { status: 'canceled', updatedAt: nowIso() })
+    })
+    await Promise.all(ticketDeletes)
+    
+    // Clear all queues
+    const queuesSnap = await getDocs(queuesCol())
+    const queueUpdates = queuesSnap.docs.map(async (docSnap) => {
+      await updateDoc(doc(db, 'queues', docSnap.id), { 
+        lastNumber: 0, 
+        currentNumber: 0, 
+        waitingCount: 0, 
+        updatedAt: nowIso() 
+      })
+    })
+    await Promise.all(queueUpdates)
+    
+    console.log(`Cleared ${ticketsSnap.size} tickets and ${queuesSnap.size} queues`)
+    return res.json({ 
+      success: true, 
+      cleared: { 
+        tickets: ticketsSnap.size, 
+        queues: queuesSnap.size 
+      } 
+    })
+  } catch (err) {
+    console.error('clearAllQueues error', err)
+    return res.status(500).json({ success: false, message: 'Failed to clear queues' })
+  }
+}
+
+export default { createTicket, getMyTicket, cancelMyTicket, getPublicTraffic, adminAdvanceQueue, clearAllQueues }
