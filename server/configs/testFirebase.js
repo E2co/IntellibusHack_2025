@@ -1,21 +1,19 @@
-import { db } from './firebase.js';
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { db } from "./db.js";
 
 async function testFirestore() {
   try {
-    // Write test
     await setDoc(doc(db, "testCollection", "testDoc"), { hello: "world" });
-    console.log('Write successful.');
+    console.log("✅ Write successful.");
 
-    // Read test
     const docSnap = await getDoc(doc(db, "testCollection", "testDoc"));
     if (docSnap.exists()) {
-      console.log('Read successful:', docSnap.data());
+      console.log("✅ Read successful:", docSnap.data());
     } else {
-      console.log('No such document!');
+      console.log("❌ No such document!");
     }
   } catch (error) {
-    console.error('Error testing Firestore:', error);
+    console.error("🔥 Error testing Firestore:", error);
   }
 }
 
