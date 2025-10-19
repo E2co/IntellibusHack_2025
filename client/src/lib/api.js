@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_BASE || 'https://queme-mocha.vercel.app/'
+const BASE_URL = import.meta.env.VITE_API_BASE || 'https://queme-mocha.vercel.app'
 
 async function request(path, { method = 'GET', body, headers = {} } = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
