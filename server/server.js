@@ -8,6 +8,7 @@ import './configs/db.js'
 import * as userRoutes from './routes/userRoute.js'
 import * as serviceRoutes from './routes/serviceRoute.js'
 import * as ticketRoutes from './routes/ticketRoute.js'
+import * as adminRoutes from './routes/adminRoute.js'
 import { getPublicTraffic } from './controllers/ticketController.js'
 
 const app = express();
@@ -43,6 +44,7 @@ app.get('/', (req, res) => res.send('it work'))
 const resolveRouter = (mod) => mod.default || mod.router || mod
 
 app.use('/api/auth', resolveRouter(userRoutes))
+app.use('/api/admin', resolveRouter(adminRoutes))
 app.use('/api/services', resolveRouter(serviceRoutes))
 app.use('/api/tickets', resolveRouter(ticketRoutes))  
 app.get('/api/traffic', getPublicTraffic)
