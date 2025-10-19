@@ -1,41 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, ArrowRight } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import api from '@/lib/api';
 
 const AdminLogin = () => {
-  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [idNumber, setIdNumber] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
   const { admin, loading } = useAdminAuth();
 
-  const handleLogin = (e) => {
+  useEffect(() => {
+    if (!loading && admin) {
+      navigate('/admin');
+    }
+  }, [admin, loading, navigate]);
+
+  const handleLogin = async (e) => {
     e.preventDefault();
+    setIsLoading(true);
+    setError('');
     
-    if (!name || !idNumber) {
-      toast({
-        title: "Error",
-        description: "Please enter both name and ID number",
-        variant: "destructive"
-      });
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      setIsLoading(false);
       return;
     }
 
-    // Store admin session
-    localStorage.setItem('adminAuth', JSON.stringify({ name, idNumber, loggedInAt: new Date().toISOString() }));
-    
-    toast({
-      title: "Welcome!",
-      description: "Successfully logged in to admin dashboard"
-    });
-    
-    navigate('/admin');
+    try {
+      const response = await api.post('/api/auth/admin/login', {
+        email,
+        password,
+        idNumber: idNumber || undefined
+      });
+
+      if (response.success) {
+        toast({
+          title: "Welcome!",
+          description: "Successfully logged in to admin dashboard"
+        });
+        
+        // The JWT cookie is set automatically by the server
+        // Reload to trigger useAdminAuth to fetch the admin data
+        window.location.href = '/admin';
+      } else {
+        setError(response.message || 'Login failed');
+      }
+    } catch (err) {
+      console.error('Admin login error:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to login. Please check your credentials.';
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (loading) {
@@ -96,32 +128,59 @@ const AdminLogin = () => {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            )}
+
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
-                id="name"
-                type="text"
-                placeholder="Enter your full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                id="email"
+                type="email"
+                placeholder="admin@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isLoading}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="idNumber">ID Number</Label>
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="idNumber">ID Number (Optional)</Label>
               <Input
                 id="idNumber"
                 type="text"
-                placeholder="Enter your ID number"
+                placeholder="Admin ID Number"
                 value={idNumber}
                 onChange={(e) => setIdNumber(e.target.value)}
-                required
+                disabled={isLoading}
               />
             </div>
             
-            <Button type="submit" className="w-full">
-              Sign In
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                  Signing In...
+                </span>
+              ) : (
+                'Sign In'
+              )}
             </Button>
           </form>
         </CardContent>
