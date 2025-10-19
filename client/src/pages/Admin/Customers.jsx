@@ -1,4 +1,4 @@
-const _jsxFileName = "";import React from 'react';
+import React, { useState } from 'react';
 import { Search, SlidersHorizontal } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -7,54 +7,57 @@ import { CustomerTable } from '@/components/admin/CustomerTable';
 import { useCustomerSearch } from '@/hooks/useCustomerSearch';
 
 export default function Customers() {
-  const { customers, searchTerm, setSearchTerm, filterType, setFilterType } = useCustomerSearch();
+  // Align with existing hook API: returns { query, setQuery, results }
+  const { query, setQuery, results } = useCustomerSearch();
+  const [filterType, setFilterType] = useState('recent');
+  const customers = results;
 
   return (
-    React.createElement('div', { className: "space-y-8"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 13}}
-      /* Header */
-      , React.createElement('div', {__self: this, __source: {fileName: _jsxFileName, lineNumber: 15}}
-        , React.createElement('h1', { className: "text-4xl font-bold text-foreground"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 16}}, "Customers")
-        , React.createElement('p', { className: "text-muted-foreground mt-2"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 17}}, "View and manage all customer records")
-      )
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-4xl font-bold text-foreground">Customers</h1>
+        <p className="text-muted-foreground mt-2">View and manage all customer records</p>
+      </div>
 
-      /* Search and Filter Bar */
-      , React.createElement('div', { className: "flex items-center gap-4"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 21}}
-        , React.createElement('div', { className: "relative flex-1 max-w-md"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 22}}
-          , React.createElement(Search, { className: "absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"      , __self: this, __source: {fileName: _jsxFileName, lineNumber: 23}} )
-          , React.createElement(Input, {
-            placeholder: "Search customers...",
-            value: searchTerm,
-            onChange: (e) => setSearchTerm(e.target.value),
-            className: "pl-10", __self: this, __source: {fileName: _jsxFileName, lineNumber: 24}}
-          )
-        )
+      {/* Search and Filter Bar */}
+      <div className="flex items-center gap-4">
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search customers..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
 
-        , React.createElement(Select, { value: filterType, onValueChange: setFilterType, __self: this, __source: {fileName: _jsxFileName, lineNumber: 32}}
-          , React.createElement(SelectTrigger, { className: "w-[200px]"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 33}}
-            , React.createElement(SlidersHorizontal, { className: "w-4 h-4 mr-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 34}} )
-            , React.createElement(SelectValue, { placeholder: "Filter by" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 35}} )
-          )
-          , React.createElement(SelectContent, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 37}}
-            , React.createElement(SelectItem, { value: "recent", __self: this, __source: {fileName: _jsxFileName, lineNumber: 38}}, "Last Visited (Recent)")
-            , React.createElement(SelectItem, { value: "oldest", __self: this, __source: {fileName: _jsxFileName, lineNumber: 39}}, "Last Visited (Oldest)")
-            , React.createElement(SelectItem, { value: "a-z", __self: this, __source: {fileName: _jsxFileName, lineNumber: 40}}, "Alphabetical (A-Z)")
-            , React.createElement(SelectItem, { value: "z-a", __self: this, __source: {fileName: _jsxFileName, lineNumber: 41}}, "Alphabetical (Z-A)")
-            , React.createElement(SelectItem, { value: "most-visits", __self: this, __source: {fileName: _jsxFileName, lineNumber: 42}}, "Most Visits")
-          )
-        )
+        <Select value={filterType} onValueChange={setFilterType}>
+          <SelectTrigger className="w-[200px]">
+            <SlidersHorizontal className="w-4 h-4 mr-2" />
+            <SelectValue placeholder="Filter by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">Last Visited (Recent)</SelectItem>
+            <SelectItem value="oldest">Last Visited (Oldest)</SelectItem>
+            <SelectItem value="a-z">Alphabetical (A-Z)</SelectItem>
+            <SelectItem value="z-a">Alphabetical (Z-A)</SelectItem>
+            <SelectItem value="most-visits">Most Visits</SelectItem>
+          </SelectContent>
+        </Select>
 
-        , React.createElement(Button, { variant: "outline" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 46}}, "Export CSV")
-      )
+        <Button variant="outline">Export CSV</Button>
+      </div>
 
-      /* Customer Table */
-      , React.createElement('div', {__self: this, __source: {fileName: _jsxFileName, lineNumber: 50}}
-        , React.createElement(CustomerTable, { customers: customers, __self: this, __source: {fileName: _jsxFileName, lineNumber: 51}} )
-      )
+      {/* Customer Table */}
+      <div>
+        <CustomerTable customers={customers} />
+      </div>
 
-      /* Results Count */
-      , React.createElement('div', { className: "text-sm text-muted-foreground"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 55}}
-        , "Showing ", customers.length, " customer", customers.length !== 1 ? 's' : ''
-      )
-    )
+      {/* Results Count */}
+      <div className="text-sm text-muted-foreground">
+        {`Showing ${customers.length} customer${customers.length !== 1 ? 's' : ''}`}
+      </div>
+    </div>
   );
 }

@@ -1,4 +1,4 @@
-const _jsxFileName = "";import React from 'react';
+import React from 'react';
 import { Navbar } from "@/components/Navbar";
 import { GlassCard } from "@/components/GlassCard";
 import { Clock, Users, Shield, Zap } from "lucide-react";
