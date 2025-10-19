@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+
 import Home from "./pages/Home";
 import About from "./pages/About";
 import JoinUs from "./pages/JoinUs";
@@ -14,13 +15,15 @@ import Login from "./pages/Login";
 import ServiceSelect from "./pages/ServiceSelect";
 import Ticket from "./pages/Ticket";
 import NotFound from "./pages/NotFound";
+
 import { AdminLayout } from "./components/admin/AdminLayout";
-import Dashboard from "./pages/admin/Dashboard";
-import Customers from "./pages/admin/Customers";
-import Services from "./pages/admin/Services";
-import Analytics from "./pages/admin/Analytics";
-import Settings from "./pages/admin/Settings";
-import AdminLogin from "./pages/admin/Login";
+import Dashboard from "./pages/Admin/Dashboard";
+import Customers from "./pages/Admin/Customers";
+import Services from "./pages/Admin/Services";
+import Analytics from "./pages/Admin/Analytics";
+import Settings from "./pages/Admin/Settings";
+import AdminLogin from "./pages/Admin/Login";
+
 import { ProtectedAdminRoute } from "./components/admin/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
