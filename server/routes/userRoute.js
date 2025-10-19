@@ -1,14 +1,18 @@
 import express from 'express';
 import authUser from '../middlewears/authUser.js';
-import AuthController from '../controllers/userController.js';
+import { register, login, me, logout, adminLogin, adminRegister } from '../controllers/userController.js';
 
 const router = express.Router();
 
-// Auth endpoints
-router.post('/register', AuthController.register);
-router.post('/login', AuthController.login);
-router.get('/me', authUser, AuthController.me);
-router.post('/logout', AuthController.logout);
+// Regular user auth endpoints
+router.post('/register', register);
+router.post('/login', login);
+router.get('/me', authUser, me);
+router.post('/logout', logout);
+
+// Admin auth endpoints
+router.post('/admin/login', adminLogin);
+router.post('/admin/register', adminRegister);
 
 export { router };
 export default router;
