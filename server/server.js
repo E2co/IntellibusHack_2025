@@ -2,6 +2,7 @@ import express from 'express'
 import 'dotenv/config'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
+const cors = require("cors")
 
 import './configs/db.js'
 
@@ -20,19 +21,10 @@ const allowedOrigins = CLIENT_ORIGIN.split(',').map(origin => origin.trim())
 
 console.log('Allowed origins:', allowedOrigins)
 
-app.use(cors({ 
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like Postman, mobile apps)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}))
+app.use(
+  cors({
+    origin: "https://intellibus-hack-2025-git-main-e2cos-projects.vercel.app"
+  })
 
 app.use(cookieParser())
 app.use(express.json())
