@@ -1,115 +1,131 @@
-const _jsxFileName = "";import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { GlassCard } from "@/components/GlassCard";
 import { ServiceTile } from "@/components/ServiceTile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import {
-  DollarSign,
-  FileText,
-  CreditCard,
-  Hash,
-  MoreHorizontal,
-} from "lucide-react";
+import api from "@/lib/api";
+import { iconForService } from "@/lib/icons";
 
-const services = [
-  {
-    id: "cashier",
-    title: "Cashier",
-    icon: DollarSign,
-    queueLength: 18,
-    eta: "~22 min",
-    activeCounters: 3,
-    loadPercentage: 75,
-  },
-  {
-    id: "titles",
-    title: "Titles",
-    icon: FileText,
-    queueLength: 12,
-    eta: "~18 min",
-    activeCounters: 2,
-    loadPercentage: 60,
-  },
-  {
-    id: "license",
-    title: "License",
-    icon: CreditCard,
-    queueLength: 24,
-    eta: "~32 min",
-    activeCounters: 4,
-    loadPercentage: 85,
-  },
-  {
-    id: "trn",
-    title: "TRN",
-    icon: Hash,
-    queueLength: 8,
-    eta: "~12 min",
-    activeCounters: 2,
-    loadPercentage: 40,
-  },
-  {
-    id: "other",
-    title: "Other Services",
-    icon: MoreHorizontal,
-    queueLength: 6,
-    eta: "~10 min",
-    activeCounters: 1,
-    loadPercentage: 30,
-  },
-];
+const toTile = (s) => ({
+  id: s.id,
+  title: s.name || s.code,
+  icon: iconForService(s.code),
+  queueLength: 0,
+  eta: "~",
+  activeCounters: 0,
+  loadPercentage: 0,
+})
 
 const ServiceSelect = () => {
   const navigate = useNavigate();
+  const [services, setServices] = useState([])
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
 
-  const handleServiceSelect = (serviceId) => {
-    // Store selected service
-    localStorage.setItem("selectedService", serviceId);
-    navigate("/ticket");
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError("")
+      try {
+        const data = await api.get('/api/services')
+        if (!cancelled) setServices((data.services || []).map(toTile))
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load services')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleServiceSelect = async (serviceId) => {
+    if (creating) return; // Prevent double-clicks
+    
+    try {
+      setCreating(true)
+      setError("")
+      console.log('Creating ticket for service:', serviceId)
+      const response = await api.post('/api/tickets', { serviceId })
+      console.log('Ticket created:', response)
+      navigate('/ticket')
+    } catch (err) {
+      console.error('Failed to create ticket:', err)
+      const errorMessage = err.message || 'Failed to create ticket'
+      
+      // Check if it's an authentication error
+      if (errorMessage.includes('Not Authorized') || errorMessage.includes('401')) {
+        setError('Please log in to join a queue')
+        setTimeout(() => navigate('/login'), 2000)
+      } else {
+        setError(errorMessage)
+      }
+    } finally {
+      setCreating(false)
+    }
   };
 
   return (
-    React.createElement('div', { className: "min-h-screen p-4 md:p-8"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 72}}
-      , React.createElement('div', { className: "max-w-6xl mx-auto space-y-8"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 73}}
-        , React.createElement(Button, {
-          variant: "ghost",
-          className: "mb-4",
-          onClick: () => navigate(-1), __self: this, __source: {fileName: _jsxFileName, lineNumber: 74}}
+    <div className="min-h-screen p-4 md:p-8">
+      <div className="max-w-6xl mx-auto space-y-8">
+        <Button
+          variant="ghost"
+          className="mb-4"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Button>
 
-          , React.createElement(ArrowLeft, { className: "mr-2 h-4 w-4"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 79}} ), "Back"
+        <div className="text-center space-y-4">
+          <h1 className="text-3xl md:text-4xl font-bold">
+            Select Your Service
+          </h1>
+          <p className="text-muted-foreground text-lg">
+            Choose the service you need assistance with
+          </p>
+        </div>
 
-        )
+        {error && (
+          <div className="p-4 text-destructive text-center bg-destructive/10 rounded-lg">
+            {error}
+          </div>
+        )}
 
-        , React.createElement('div', { className: "text-center space-y-4" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 83}}
-          , React.createElement('h1', { className: "text-3xl md:text-4xl font-bold"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 84}}, "Select Your Service"  )
-          , React.createElement('p', { className: "text-muted-foreground text-lg" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 85}}, "Choose the service you need assistance with"
+        {loading && (
+          <div className="text-center text-muted-foreground">
+            Loading services...
+          </div>
+        )}
 
-          )
-        )
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {services.map((service, index) => (
+            <div
+              key={service.id}
+              className="animate-slide-up"
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <ServiceTile
+                {...service}
+                onClick={() => handleServiceSelect(service.id)}
+                disabled={creating}
+              />
+            </div>
+          ))}
+        </div>
 
-        , React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"    , __self: this, __source: {fileName: _jsxFileName, lineNumber: 90}}
-          , services.map((service, index) => (
-            React.createElement('div', {
-              key: service.id,
-              className: "animate-slide-up",
-              style: { animationDelay: `${index * 0.1}s` }, __self: this, __source: {fileName: _jsxFileName, lineNumber: 92}}
-
-              , React.createElement(ServiceTile, {
-                ...service,
-                onClick: () => handleServiceSelect(service.id), __self: this, __source: {fileName: _jsxFileName, lineNumber: 97}}
-              )
-            )
-          ))
-        )
-
-        , React.createElement(GlassCard, { className: "p-6 text-center" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 105}}
-          , React.createElement('p', { className: "text-sm text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 106}}, "Select a service to receive your queue ticket"
-
-          )
-        )
-      )
-    )
+        <GlassCard className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {creating 
+              ? "Creating your ticket..." 
+              : "Select a service to receive your queue ticket"}
+          </p>
+        </GlassCard>
+      </div>
+    </div>
   );
 };
 

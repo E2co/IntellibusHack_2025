@@ -259,3 +259,18 @@ body {
 @utility animate-fade-in {
   animation: fade-in 0.5s ease-in-out;
 }
+
+/* Admin Sidebar Styles */
+.admin-sidebar {
+  background: linear-gradient(180deg, 
+    hsl(var(--admin-sidebar-bg)) 0%, 
+    hsl(222 40% 8%) 100%);
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.admin-nav-item-active {
+  background: linear-gradient(90deg, 
+    hsl(var(--admin-sidebar-hover)) 0%, 
+    hsl(217 91% 50%) 100%);
+  box-shadow: 0 0 20px hsl(var(--admin-sidebar-hover) / 0.4);
+}

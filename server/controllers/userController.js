@@ -1,504 +1,144 @@
-import User from '../models/User.js';
-import { validationResult } from 'express-validator';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { db } from '../configs/db.js';
+import { collection, query, where, getDocs, addDoc, doc, getDoc, updateDoc, limit } from 'firebase/firestore';
+import { getJwtSecret } from '../configs/jwt.js';
 
-class UserController {
-  // GET /users - Get all users (with pagination and filters)
-  async getAllUsers(req, res) {
-    try {
-      const {
-        page = 1,
-        limit = 10,
-        activeOnly = 'true',
-        search = '',
-        role = '',
-        orderBy = 'createdAt',
-        order = 'desc'
-      } = req.query;
+// Helpers
+const usersCol = () => collection(db, 'users');
+const nowIso = () => new Date().toISOString();
+const buildProfile = (docSnap) => {
+  if (!docSnap || !docSnap.exists()) return null;
+  const data = docSnap.data();
+  return {
+    id: docSnap.id,
+    email: data.email,
+    name: data.name,
+    role: data.role || 'user',
+    isActive: data.isActive !== undefined ? data.isActive : true,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+    lastLogin: data.lastLogin || null,
+    profile: data.profile || {},
+    preferences: data.preferences || {}
+  };
+};
 
-      // Build options for User.findAll
-      const options = {
-        activeOnly: activeOnly === 'true',
-        orderByField: orderBy,
-        orderDirection: order,
-        role: role || ''
-      };
+const makeCookieOptions = () => {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+    path: '/',
+    // maxAge: 7 days
+    maxAge: 7 * 24 * 60 * 60 * 1000
+  };
+};
 
-      let users = await User.findAll(options);
-
-      // Apply search filter
-      if (search) {
-        users = users.filter(user => 
-          user.name.toLowerCase().includes(search.toLowerCase()) ||
-          user.email.toLowerCase().includes(search.toLowerCase()) ||
-          (user.profile.phone && user.profile.phone.includes(search))
-        );
-      }
-
-      // Pagination
-      const startIndex = (page - 1) * limit;
-      const endIndex = page * limit;
-      const paginatedUsers = users.slice(startIndex, endIndex);
-
-      res.status(200).json({
-        success: true,
-        data: paginatedUsers,
-        pagination: {
-          current: parseInt(page),
-          limit: parseInt(limit),
-          total: users.length,
-          pages: Math.ceil(users.length / limit)
-        }
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error fetching users',
-        error: error.message
-      });
+export const register = async (req, res) => {
+  try {
+    const { email, name, password } = req.body || {};
+    if (!email || !name || !password) {
+      return res.status(400).json({ success: false, message: 'email, name, and password are required' });
     }
-  }
 
-  // GET /users/:id - Get user by ID
-  async getUserById(req, res) {
-    try {
-      const { id } = req.params;
-      
-      const user = await User.findById(id);
-      
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: user
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error fetching user',
-        error: error.message
-      });
+    const q = query(usersCol(), where('email', '==', email), limit(1));
+    const existsSnap = await getDocs(q);
+    if (!existsSnap.empty) {
+      return res.status(409).json({ success: false, message: 'Email already in use' });
     }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const userData = {
+      email,
+      name,
+      role: 'user',
+      isActive: true,
+      passwordHash,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+      lastLogin: null,
+      profile: {},
+      preferences: {}
+    };
+
+    const docRef = await addDoc(usersCol(), userData);
+    const token = jwt.sign({ id: docRef.id }, getJwtSecret(), { expiresIn: '7d' });
+
+    res.cookie('token', token, makeCookieOptions());
+    const docSnap = await getDoc(docRef);
+    return res.status(201).json({ success: true, user: buildProfile(docSnap) });
+  } catch (err) {
+    console.error('register error', err);
+    return res.status(500).json({ success: false, message: 'Registration failed' });
   }
+};
 
-  // GET /users/email/:email - Get user by email
-  async getUserByEmail(req, res) {
-    try {
-      const { email } = req.params;
-      
-      const user = await User.findByEmail(email);
-      
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      res.status(200).json({
-        success: true,
-        data: user
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error fetching user',
-        error: error.message
-      });
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'email and password are required' });
     }
-  }
 
-  // POST /users - Create new user
-  async createUser(req, res) {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Validation failed',
-          errors: errors.array()
-        });
-      }
-
-      const { email, name, role, isActive, profile, preferences } = req.body;
-
-      // Check if user already exists
-      const existingUser = await User.findByEmail(email);
-      if (existingUser) {
-        return res.status(409).json({
-          success: false,
-          message: 'User with this email already exists'
-        });
-      }
-
-      const userData = {
-        email,
-        name,
-        role: role || 'user',
-        isActive: isActive !== undefined ? isActive : true,
-        profile: profile || {},
-        preferences: preferences || {}
-      };
-
-      const user = await User.create(userData);
-
-      res.status(201).json({
-        success: true,
-        message: 'User created successfully',
-        data: user
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error creating user',
-        error: error.message
-      });
+    const q = query(usersCol(), where('email', '==', email), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
-  }
 
-  // PUT /users/:id - Update user
-  async updateUser(req, res) {
-    try {
-      const { id } = req.params;
-      const updates = req.body;
-
-      // Don't allow updating ID or email through this endpoint
-      delete updates.id;
-      delete updates.email;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const updatedUser = await user.update(updates);
-
-      res.status(200).json({
-        success: true,
-        message: 'User updated successfully',
-        data: updatedUser
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating user',
-        error: error.message
-      });
+    const docSnap = snap.docs[0];
+    const data = docSnap.data();
+    if (!data.passwordHash) {
+      return res.status(400).json({ success: false, message: 'User has no password set' });
     }
-  }
 
-  // PATCH /users/:id/profile - Update user profile
-  async updateUserProfile(req, res) {
-    try {
-      const { id } = req.params;
-      const profileData = req.body;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const updatedUser = await user.updateProfile(profileData);
-
-      res.status(200).json({
-        success: true,
-        message: 'User profile updated successfully',
-        data: updatedUser
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating user profile',
-        error: error.message
-      });
+    const ok = await bcrypt.compare(password, data.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+
+    // Update lastLogin
+    const userDocRef = doc(db, 'users', docSnap.id);
+    await updateDoc(userDocRef, { lastLogin: nowIso(), updatedAt: nowIso() });
+
+    const token = jwt.sign({ id: docSnap.id }, getJwtSecret(), { expiresIn: '7d' });
+    res.cookie('token', token, makeCookieOptions());
+    return res.json({ success: true, user: buildProfile(docSnap) });
+  } catch (err) {
+    console.error('login error', err);
+    return res.status(500).json({ success: false, message: 'Login failed' });
   }
+};
 
-  // PATCH /users/:id/preferences - Update user preferences
-  async updateUserPreferences(req, res) {
-    try {
-      const { id } = req.params;
-      const preferencesData = req.body;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const updatedUser = await user.updatePreferences(preferencesData);
-
-      res.status(200).json({
-        success: true,
-        message: 'User preferences updated successfully',
-        data: updatedUser
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating user preferences',
-        error: error.message
-      });
+export const me = async (req, res) => {
+  try {
+    const userId = req.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Not Authorized' });
     }
-  }
 
-  // PATCH /users/:id/status - Update user status
-  async updateUserStatus(req, res) {
-    try {
-      const { id } = req.params;
-      const { isActive } = req.body;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const updatedUser = await user.update({ isActive });
-
-      res.status(200).json({
-        success: true,
-        message: `User ${isActive ? 'activated' : 'deactivated'} successfully`,
-        data: updatedUser
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating user status',
-        error: error.message
-      });
+    const userDocRef = doc(db, 'users', userId);
+    const docSnap = await getDoc(userDocRef);
+    if (!docSnap.exists()) {
+      return res.status(404).json({ success: false, message: 'User not found' });
     }
+    return res.json({ success: true, user: buildProfile(docSnap) });
+  } catch (err) {
+    console.error('me error', err);
+    return res.status(500).json({ success: false, message: 'Failed to fetch profile' });
   }
+};
 
-  // PATCH /users/:id/promote - Promote user to admin (admin only)
-  async promoteUserToAdmin(req, res) {
-    try {
-      const { id } = req.params;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      const updatedUser = await user.promoteToAdmin();
-
-      res.status(200).json({
-        success: true,
-        message: 'User promoted to admin successfully',
-        data: updatedUser
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error promoting user to admin',
-        error: error.message
-      });
-    }
+export const logout = async (req, res) => {
+  try {
+    res.clearCookie('token', makeCookieOptions());
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('logout error', err);
+    return res.status(500).json({ success: false, message: 'Logout failed' });
   }
+};
 
-  // PATCH /users/:id/last-login - Update last login
-  async updateLastLogin(req, res) {
-    try {
-      const { id } = req.params;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      await user.updateLastLogin();
-
-      res.status(200).json({
-        success: true,
-        message: 'Last login updated successfully'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error updating last login',
-        error: error.message
-      });
-    }
-  }
-
-  // DELETE /users/:id - Soft delete user
-  async softDeleteUser(req, res) {
-    try {
-      const { id } = req.params;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      await user.softDelete();
-
-      res.status(200).json({
-        success: true,
-        message: 'User soft deleted successfully'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error soft deleting user',
-        error: error.message
-      });
-    }
-  }
-
-  // DELETE /users/:id/hard - Hard delete user
-  async hardDeleteUser(req, res) {
-    try {
-      const { id } = req.params;
-
-      const user = await User.findById(id);
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      await user.delete();
-
-      res.status(200).json({
-        success: true,
-        message: 'User permanently deleted successfully'
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error deleting user',
-        error: error.message
-      });
-    }
-  }
-
-  // GET /users/stats/count - Get user count statistics
-  async getUserStats(req, res) {
-    try {
-      const totalUsers = await User.getCount(false);
-      const activeUsers = await User.getCount(true);
-      const allUsers = await User.findAll({ activeOnly: false });
-
-      // Group by role
-      const usersByRole = allUsers.reduce((acc, user) => {
-        acc[user.role] = (acc[user.role] || 0) + 1;
-        return acc;
-      }, {});
-
-      // Recent users (last 7 days)
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      const recentUsers = allUsers.filter(user => 
-        new Date(user.createdAt) > oneWeekAgo
-      );
-
-      const stats = {
-        total: totalUsers,
-        active: activeUsers,
-        inactive: totalUsers - activeUsers,
-        byRole: usersByRole,
-        recent: recentUsers.length
-      };
-
-      res.status(200).json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error fetching user statistics',
-        error: error.message
-      });
-    }
-  }
-
-  // POST /users/bulk - Create multiple users
-  async createBulkUsers(req, res) {
-    try {
-      const { users } = req.body;
-
-      if (!Array.isArray(users) || users.length === 0) {
-        return res.status(400).json({
-          success: false,
-          message: 'Users array is required'
-        });
-      }
-
-      const createdUsers = await User.createMultiple(users);
-
-      res.status(201).json({
-        success: true,
-        message: `${createdUsers.length} users created successfully`,
-        data: createdUsers
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error creating bulk users',
-        error: error.message
-      });
-    }
-  }
-
-  // GET /users/search/:query - Search users
-  async searchUsers(req, res) {
-    try {
-      const { query } = req.params;
-
-      if (!query) {
-        return res.status(400).json({
-          success: false,
-          message: 'Search query is required'
-        });
-      }
-
-      const allUsers = await User.findAll({ activeOnly: false });
-      
-      const filteredUsers = allUsers.filter(user =>
-        user.name.toLowerCase().includes(query.toLowerCase()) ||
-        user.email.toLowerCase().includes(query.toLowerCase()) ||
-        (user.profile.phone && user.profile.phone.includes(query))
-      );
-
-      res.status(200).json({
-        success: true,
-        data: filteredUsers,
-        count: filteredUsers.length
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Error searching users',
-        error: error.message
-      });
-    }
-  }
-}
-
-export default new UserController();
+export default { register, login, me, logout };

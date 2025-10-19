@@ -21,5 +21,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
+console.log('✅ Firebase Client SDK initialized with project:', firebaseConfig.projectId);
+
 export { app, db };
 

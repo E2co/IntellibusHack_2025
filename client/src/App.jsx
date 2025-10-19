@@ -1,4 +1,4 @@
-const _jsxFileName = "";import React from 'react';
+import React from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,32 +14,96 @@ import Login from "./pages/Login";
 import ServiceSelect from "./pages/ServiceSelect";
 import Ticket from "./pages/Ticket";
 import NotFound from "./pages/NotFound";
+import { AdminLayout } from "./components/admin/AdminLayout";
+import Dashboard from "./pages/admin/Dashboard";
+import Customers from "./pages/admin/Customers";
+import Services from "./pages/admin/Services";
+import Analytics from "./pages/admin/Analytics";
+import Settings from "./pages/admin/Settings";
+import AdminLogin from "./pages/admin/Login";
+import { ProtectedAdminRoute } from "./components/admin/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  React.createElement(QueryClientProvider, { client: queryClient, __self: this, __source: {fileName: _jsxFileName, lineNumber: 20}}
-    , React.createElement(ThemeProvider, { attribute: "class", defaultTheme: "light", enableSystem: true, __self: this, __source: {fileName: _jsxFileName, lineNumber: 21}}
-      , React.createElement(TooltipProvider, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 22}}
-        , React.createElement(Toaster, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 23}} )
-        , React.createElement(Sonner, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 24}} )
-        , React.createElement(BrowserRouter, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 25}}
-          , React.createElement(Routes, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 26}}
-            , React.createElement(Route, { path: "/", element: React.createElement(Home, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 27}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 27}} )
-            , React.createElement(Route, { path: "/about", element: React.createElement(About, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 28}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 28}} )
-            , React.createElement(Route, { path: "/join-us", element: React.createElement(JoinUs, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 29}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 29}} )
-            , React.createElement(Route, { path: "/taj", element: React.createElement(PublicTraffic, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 30}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 30}} )
-            , React.createElement(Route, { path: "/signup", element: React.createElement(SignUp, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 31}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 31}} )
-            , React.createElement(Route, { path: "/login", element: React.createElement(Login, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 32}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 32}} )
-            , React.createElement(Route, { path: "/service-select", element: React.createElement(ServiceSelect, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 33}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 33}} )
-            , React.createElement(Route, { path: "/ticket", element: React.createElement(Ticket, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 34}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 34}} )
-            /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
-            , React.createElement(Route, { path: "*", element: React.createElement(NotFound, {__self: this, __source: {fileName: _jsxFileName, lineNumber: 36}} ), __self: this, __source: {fileName: _jsxFileName, lineNumber: 36}} )
-          )
-        )
-      )
-    )
-  )
+  <QueryClientProvider client={queryClient}>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+
+        <BrowserRouter>
+          <Routes>
+            {/* Public routes */}
+            <Route path="/" element={<Home />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/join-us" element={<JoinUs />} />
+            <Route path="/taj" element={<PublicTraffic />} />
+            <Route path="/signup" element={<SignUp />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/service-select" element={<ServiceSelect />} />
+            <Route path="/ticket" element={<Ticket />} />
+
+            {/* Admin routes */}
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminLayout>
+                    <Dashboard />
+                  </AdminLayout>
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/customers"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminLayout>
+                    <Customers />
+                  </AdminLayout>
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/services"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminLayout>
+                    <Services />
+                  </AdminLayout>
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/analytics"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminLayout>
+                    <Analytics />
+                  </AdminLayout>
+                </ProtectedAdminRoute>
+              }
+            />
+            <Route
+              path="/admin/settings"
+              element={
+                <ProtectedAdminRoute>
+                  <AdminLayout>
+                    <Settings />
+                  </AdminLayout>
+                </ProtectedAdminRoute>
+              }
+            />
+
+            {/* Catch-all */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
+  </QueryClientProvider>
 );
 
 export default App;
