@@ -1,72 +1,53 @@
-const _jsxFileName = "";import React from 'react';
+const _jsxFileName = "";import React, { useEffect, useState } from 'react';
 import { GlassCard } from "@/components/GlassCard";
 import { ServiceTile } from "@/components/ServiceTile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
-import {
-  DollarSign,
-  FileText,
-  CreditCard,
-  Hash,
-  MoreHorizontal,
-} from "lucide-react";
+import api from "@/lib/api";
+import { iconForService } from "@/lib/icons";
 
-const services = [
-  {
-    id: "cashier",
-    title: "Cashier",
-    icon: DollarSign,
-    queueLength: 18,
-    eta: "~22 min",
-    activeCounters: 3,
-    loadPercentage: 75,
-  },
-  {
-    id: "titles",
-    title: "Titles",
-    icon: FileText,
-    queueLength: 12,
-    eta: "~18 min",
-    activeCounters: 2,
-    loadPercentage: 60,
-  },
-  {
-    id: "license",
-    title: "License",
-    icon: CreditCard,
-    queueLength: 24,
-    eta: "~32 min",
-    activeCounters: 4,
-    loadPercentage: 85,
-  },
-  {
-    id: "trn",
-    title: "TRN",
-    icon: Hash,
-    queueLength: 8,
-    eta: "~12 min",
-    activeCounters: 2,
-    loadPercentage: 40,
-  },
-  {
-    id: "other",
-    title: "Other Services",
-    icon: MoreHorizontal,
-    queueLength: 6,
-    eta: "~10 min",
-    activeCounters: 1,
-    loadPercentage: 30,
-  },
-];
+const toTile = (s) => ({
+  id: s.id,
+  title: s.name || s.code,
+  icon: iconForService(s.code),
+  queueLength: 0,
+  eta: "~",
+  activeCounters: 0,
+  loadPercentage: 0,
+})
 
 const ServiceSelect = () => {
   const navigate = useNavigate();
+  const [services, setServices] = useState([])
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(true)
 
-  const handleServiceSelect = (serviceId) => {
-    // Store selected service
-    localStorage.setItem("selectedService", serviceId);
-    navigate("/ticket");
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError("")
+      try {
+        const data = await api.get('/api/services')
+        if (!cancelled) setServices((data.services || []).map(toTile))
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load services')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [])
+
+  const handleServiceSelect = async (serviceId) => {
+    try {
+      await api.post('/api/tickets', { serviceId })
+      navigate('/ticket')
+    } catch (err) {
+      setError(err.message || 'Failed to create ticket')
+    }
   };
 
   return (
@@ -88,8 +69,10 @@ const ServiceSelect = () => {
           )
         )
 
+        , error && React.createElement('div', { className: "p-4 text-destructive text-center" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 90}}, error)
+
         , React.createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"    , __self: this, __source: {fileName: _jsxFileName, lineNumber: 90}}
-          , services.map((service, index) => (
+          , (loading ? [] : services).map((service, index) => (
             React.createElement('div', {
               key: service.id,
               className: "animate-slide-up",

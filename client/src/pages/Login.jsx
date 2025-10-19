@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
+import api from "@/lib/api";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,11 +14,24 @@ const Login = () => {
     email: "",
     password: "",
   });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // In real app, this would authenticate the user
-    navigate("/ticket");
+    setError("");
+    setLoading(true);
+    try {
+      await api.post("/api/auth/login", {
+        email: formData.email,
+        password: formData.password,
+      });
+      navigate("/ticket");
+    } catch (err) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -38,6 +52,7 @@ const Login = () => {
         )
 
         , React.createElement(GlassCard, { className: "p-6", __self: this, __source: {fileName: _jsxFileName, lineNumber: 39}}
+          , error && React.createElement('p', { className: "text-sm text-destructive mb-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 40}}, error)
           , React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4", __self: this, __source: {fileName: _jsxFileName, lineNumber: 40}}
             , React.createElement('div', { className: "space-y-2", __self: this, __source: {fileName: _jsxFileName, lineNumber: 41}}
               , React.createElement(Label, { htmlFor: "email", __self: this, __source: {fileName: _jsxFileName, lineNumber: 42}}, "Email")
@@ -70,8 +85,9 @@ const Login = () => {
             , React.createElement(Button, {
               type: "submit",
               className: "w-full bg-primary hover:bg-primary-dark"  ,
-              size: "lg", __self: this, __source: {fileName: _jsxFileName, lineNumber: 69}}
-, "Sign In"
+              size: "lg",
+              disabled: loading, __self: this, __source: {fileName: _jsxFileName, lineNumber: 69}}
+, loading ? "Signing in..." : "Sign In"
 
             )
           )

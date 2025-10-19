@@ -1,76 +1,47 @@
-const _jsxFileName = "";import React from 'react';
+const _jsxFileName = "";import React, { useEffect, useState } from 'react';
 import { GlassCard } from "@/components/GlassCard";
 import { StatusChip } from "@/components/StatusChip";
 import { ServiceTile } from "@/components/ServiceTile";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Home } from "lucide-react";
-import {
-  DollarSign,
-  FileText,
-  CreditCard,
-  Hash,
-  MoreHorizontal,
-  ArrowRight,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import api from "@/lib/api";
+import { iconForService } from "@/lib/icons";
 
-// Mock data - will be replaced with real-time data later
-const mockTrafficData = {
-  status: "moderate" ,
-  estWaitMin: 24,
-  estWaitMax: 35,
-  activeCounters: 4,
-  services: [
-    {
-      id: "cashier",
-      title: "Cashier",
-      icon: DollarSign,
-      queueLength: 18,
-      eta: "~22 min",
-      activeCounters: 3,
-      loadPercentage: 75,
-    },
-    {
-      id: "titles",
-      title: "Titles",
-      icon: FileText,
-      queueLength: 12,
-      eta: "~18 min",
-      activeCounters: 2,
-      loadPercentage: 60,
-    },
-    {
-      id: "license",
-      title: "License",
-      icon: CreditCard,
-      queueLength: 24,
-      eta: "~32 min",
-      activeCounters: 4,
-      loadPercentage: 85,
-    },
-    {
-      id: "trn",
-      title: "TRN",
-      icon: Hash,
-      queueLength: 8,
-      eta: "~12 min",
-      activeCounters: 2,
-      loadPercentage: 40,
-    },
-    {
-      id: "other",
-      title: "Other Services",
-      icon: MoreHorizontal,
-      queueLength: 6,
-      eta: "~10 min",
-      activeCounters: 1,
-      loadPercentage: 30,
-    },
-  ],
-};
+const toTile = (t) => ({
+  id: t.serviceId,
+  title: t.name || t.code,
+  icon: iconForService(t.code),
+  queueLength: t.totalInQueue || 0,
+  eta: "~",
+  activeCounters: 0,
+  loadPercentage: 0,
+})
 
 const PublicTraffic = () => {
   const navigate = useNavigate();
+  const [tiles, setTiles] = useState([])
+  const [status, setStatus] = useState('moderate')
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const data = await api.get('/api/traffic')
+        const incoming = (data.traffic || []).map(toTile)
+        if (!cancelled) setTiles(incoming)
+        const total = incoming.reduce((acc, s) => acc + (s.queueLength || 0), 0)
+        if (!cancelled) setStatus(total > 50 ? 'busy' : total > 20 ? 'moderate' : 'light')
+      } catch (err) {
+        if (!cancelled) setError(err.message || 'Failed to load traffic')
+      }
+    }
+    load()
+    const id = setInterval(load, 10000)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
 
   return (
     React.createElement('div', { className: "min-h-screen bg-gradient-to-br from-background via-primary/5 to-secondary/10 pb-8"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 75}}
@@ -92,17 +63,15 @@ const PublicTraffic = () => {
           , React.createElement('p', { className: "text-base md:text-lg text-muted-foreground"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 91}}, "facilitated by QueMeNow"
 
           )
-          , React.createElement('p', { className: "text-xs md:text-sm text-muted-foreground"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 94}}, "Updated just now • "
-                , mockTrafficData.activeCounters, " counters active"
-          )
+      , React.createElement('p', { className: "text-xs md:text-sm text-muted-foreground"  , __self: this, __source: {fileName: _jsxFileName, lineNumber: 94}}, "Updated just now")
         )
 
         /* Mind Map Layout - Desktop */
         , React.createElement('div', { className: "hidden md:block relative min-h-[800px]"   , __self: this, __source: {fileName: _jsxFileName, lineNumber: 100}}
           /* SVG for connecting lines */
           , React.createElement('svg', { className: "absolute inset-0 w-full h-full pointer-events-none"    , style: { zIndex: 0 }, __self: this, __source: {fileName: _jsxFileName, lineNumber: 102}}
-            , mockTrafficData.services.map((service, index) => {
-              const angle = (index / mockTrafficData.services.length) * 2 * Math.PI - Math.PI / 2;
+            , tiles.map((service, index) => {
+              const angle = (index / Math.max(tiles.length, 1)) * 2 * Math.PI - Math.PI / 2;
               const radius = 280;
               const x1 = 50;
               const y1 = 50;
@@ -129,19 +98,17 @@ const PublicTraffic = () => {
           /* Center Circle - Status */
           , React.createElement('div', { className: "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 129}}
             , React.createElement(GlassCard, { className: "w-64 h-64 rounded-full flex flex-col items-center justify-center space-y-4 animate-slide-up"        , __self: this, __source: {fileName: _jsxFileName, lineNumber: 130}}
-              , React.createElement(StatusChip, { status: mockTrafficData.status, __self: this, __source: {fileName: _jsxFileName, lineNumber: 131}} )
+              , React.createElement(StatusChip, { status: status, __self: this, __source: {fileName: _jsxFileName, lineNumber: 131}} )
               , React.createElement('div', { className: "text-center space-y-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 132}}
-                , React.createElement('div', { className: "text-4xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 133}}
-                  , mockTrafficData.estWaitMin, "–", mockTrafficData.estWaitMax
-                )
+                , React.createElement('div', { className: "text-4xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 133}}, "Live")
                 , React.createElement('p', { className: "text-xs text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 136}}, "minutes")
               )
             )
           )
 
           /* Services around the circle */
-          , mockTrafficData.services.map((service, index) => {
-            const angle = (index / mockTrafficData.services.length) * 2 * Math.PI - Math.PI / 2;
+          , tiles.map((service, index) => {
+            const angle = (index / Math.max(tiles.length, 1)) * 2 * Math.PI - Math.PI / 2;
             const radius = 280;
             const x = 50 + Math.cos(angle) * (radius / 8);
             const y = 50 + Math.sin(angle) * (radius / 8);
@@ -173,18 +140,16 @@ const PublicTraffic = () => {
         , React.createElement('div', { className: "md:hidden space-y-6" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 172}}
           /* Center Status Card */
           , React.createElement(GlassCard, { className: "p-6 flex flex-col items-center justify-center space-y-4 animate-slide-up mx-auto max-w-sm"        , __self: this, __source: {fileName: _jsxFileName, lineNumber: 174}}
-            , React.createElement(StatusChip, { status: mockTrafficData.status, __self: this, __source: {fileName: _jsxFileName, lineNumber: 175}} )
+            , React.createElement(StatusChip, { status: status, __self: this, __source: {fileName: _jsxFileName, lineNumber: 175}} )
             , React.createElement('div', { className: "text-center space-y-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 176}}
-              , React.createElement('div', { className: "text-3xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 177}}
-                , mockTrafficData.estWaitMin, "–", mockTrafficData.estWaitMax
-              )
+              , React.createElement('div', { className: "text-3xl font-bold" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 177}}, status === 'busy' ? 'Busy' : status === 'moderate' ? 'Moderate' : 'Light')
               , React.createElement('p', { className: "text-xs text-muted-foreground" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 180}}, "minutes estimated wait"  )
             )
           )
 
           /* Services List */
           , React.createElement('div', { className: "space-y-4", __self: this, __source: {fileName: _jsxFileName, lineNumber: 185}}
-            , mockTrafficData.services.map((service, index) => (
+            , tiles.map((service, index) => (
               React.createElement('div', {
                 key: service.id,
                 className: "animate-slide-up",
@@ -221,7 +186,7 @@ const PublicTraffic = () => {
 
         /* Live Ticker - Placeholder for future */
         , React.createElement(GlassCard, { className: "p-3 md:p-4 text-center text-xs md:text-sm text-muted-foreground"     , __self: this, __source: {fileName: _jsxFileName, lineNumber: 222}}
-          , React.createElement('div', { className: "animate-pulse-glow", __self: this, __source: {fileName: _jsxFileName, lineNumber: 223}}, "🔴 Live • System operational • All services available"
+          , React.createElement('div', { className: "animate-pulse-glow", __self: this, __source: {fileName: _jsxFileName, lineNumber: 223}}, error ? `⚠️ ${error}` : "🔴 Live • System operational • All services available"
 
           )
         )

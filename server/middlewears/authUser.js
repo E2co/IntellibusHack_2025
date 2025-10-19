@@ -1,5 +1,6 @@
 // middlewares/authUser.js - Essential optimization
 import jwt from 'jsonwebtoken';
+import { getJwtSecret } from '../configs/jwt.js';
 
 // Simple token verification cache to avoid repeated JWT verification
 const tokenCache = new Map();
@@ -21,7 +22,7 @@ const authUser = async (req, res, next) => {
     }
 
     // Verify token if not in cache
-    const tokenDecode = jwt.verify(token, process.env.JWT_SECRET);
+  const tokenDecode = jwt.verify(token, getJwtSecret());
     if (!tokenDecode.id) {
       return res.json({ success: false, message: 'Not Authorized' });
     }

@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { CalendarIcon, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
+import api from "@/lib/api";
 
 const SignUp = () => {
   const navigate = useNavigate();
@@ -22,11 +23,27 @@ const SignUp = () => {
     password: "",
   });
 
-  const handleSubmit = (e) => {
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Store user data (in real app, this would be sent to backend)
-    localStorage.setItem("userData", JSON.stringify(formData));
-    navigate("/service-select");
+    setError("");
+    setLoading(true);
+    try {
+      await api.post('/api/auth/register', {
+        name: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+      });
+      // Optionally store non-sensitive fields locally for greeting
+      localStorage.setItem("userData", JSON.stringify({ fullName: formData.fullName }));
+      navigate("/service-select");
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -47,6 +64,7 @@ const SignUp = () => {
         )
 
         , React.createElement(GlassCard, { className: "p-6", __self: this, __source: {fileName: _jsxFileName, lineNumber: 48}}
+          , error && React.createElement('p', { className: "text-sm text-destructive mb-2" , __self: this, __source: {fileName: _jsxFileName, lineNumber: 49}}, error)
           , React.createElement('form', { onSubmit: handleSubmit, className: "space-y-4", __self: this, __source: {fileName: _jsxFileName, lineNumber: 49}}
             , React.createElement('div', { className: "space-y-2", __self: this, __source: {fileName: _jsxFileName, lineNumber: 50}}
               , React.createElement(Label, { htmlFor: "fullName", __self: this, __source: {fileName: _jsxFileName, lineNumber: 51}}, "Full Name" )
@@ -159,8 +177,9 @@ const SignUp = () => {
             , React.createElement(Button, {
               type: "submit",
               className: "w-full bg-primary hover:bg-primary-dark"  ,
-              size: "lg", __self: this, __source: {fileName: _jsxFileName, lineNumber: 153}}
-, "Continue"
+              size: "lg",
+              disabled: loading, __self: this, __source: {fileName: _jsxFileName, lineNumber: 153}}
+, loading ? "Creating account..." : "Continue"
 
             )
           )
