@@ -17,13 +17,12 @@ import Ticket from "./pages/Ticket";
 import NotFound from "./pages/NotFound";
 
 import { AdminLayout } from "./components/admin/AdminLayout";
-import Dashboard from "./pages/Admin/Dashboard";
-import Customers from "./pages/Admin/Customers";
-import Services from "./pages/Admin/Services";
-import Analytics from "./pages/Admin/Analytics";
-import Settings from "./pages/Admin/Settings";
-import AdminLogin from "./pages/Admin/Login";
-
+import Dashboard from "./pages/adminn/Dashboard";
+import Customers from "./pages/adminn/Customers";
+import Services from "./pages/adminn/Services";
+import Analytics from "./pages/adminn/Analytics";
+import Settings from "./pages/adminn/Settings";
+import AdminLogin from "./pages/adminn/Login";
 import { ProtectedAdminRoute } from "./components/admin/ProtectedAdminRoute";
 
 const queryClient = new QueryClient();
