@@ -13,7 +13,7 @@ import { getPublicTraffic } from './controllers/ticketController.js'
 // Middleware
 const app = express();
 const PORT = process.env.PORT || 4000;
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || 'http://localhost:5173'
+const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || ['http://localhost:5175', 'https://intellibus-hack-2025-git-main-e2cos-projects.vercel.app?_vercel_share=IXkwTiDGrDYsWEcopzuU0nyNfic9KhCa']
 
 app.use(cors({ origin: CLIENT_ORIGIN, credentials: true}))
 app.use(cookieParser())
