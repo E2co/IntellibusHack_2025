@@ -108,11 +108,16 @@ const SignUp = () => {
                     , React.createElement(Calendar, {
                       mode: "single",
                       selected: formData.dob,
-                      onSelect: (date) =>
-                        setFormData({ ...formData, dob: date })
-                      ,
+                      onSelect: (date) => setFormData({ ...formData, dob: date }),
                       initialFocus: true,
-                      className: "pointer-events-auto", __self: this, __source: {fileName: _jsxFileName, lineNumber: 107}}
+                      // Enable month/year dropdowns for faster navigation
+                      captionLayout: "dropdown-buttons",
+                      fromYear: 1900,
+                      toYear: new Date().getFullYear(),
+                      // Show a sensible starting month (use selected or Jan 1990)
+                      defaultMonth: formData.dob ?? new Date(1990, 0, 1),
+                      className: "pointer-events-auto",
+                      __self: this, __source: {fileName: _jsxFileName, lineNumber: 107}}
                     )
                   )
                 )
